@@ -8,7 +8,6 @@ import java.util.Random;
 public class Deck {
     private final List<Card> cards = new ArrayList<>();
     private Card trumpCard;
-    private Random random;
 
     public Deck() {
         for (Suit suit : Suit.values()) {
@@ -18,7 +17,7 @@ public class Deck {
         }
     }
 
-    public void shuffle() {
+    public void shuffle(Random random) {
         for (int i = cards.size() - 1; i > 0; i--) {
             int j = random.nextInt(i + 1);
             Card temp = cards.get(i);
