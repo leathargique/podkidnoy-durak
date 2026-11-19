@@ -211,6 +211,8 @@ public class Game {
     
     public Suit getTrumpSuit() {return trumpSuit;}
 
+    public Card getTrumpCard() {return deck.getTrumpCard();}
+
     public int getDeckSize() {return deck.size();}
 
     public int getDiscardSize() {return discard.size();}
@@ -223,13 +225,15 @@ public class Game {
 
     public int getDefender() {return defender;}
 
+    public boolean isTakeDeclared() {return takeDeclared;}
+
     public int getAttackLimit() {return attackLimit;}
 
     public boolean isFinished() {return finished;}
 
     public int getLoser() {return loser;}
 
-    public List<GameEvent> getLog() {return Collections.unmodifiableList(log);}
+    public List<GameEvent> getEventLog() {return Collections.unmodifiableList(log);}
     
     //------------------------------
     // Внутренние методы
