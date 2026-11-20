@@ -5,8 +5,22 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
+/**
+ * Механика подкидного дурака (2–5 игроков, колода 36 карт).
+ *
+ * <p>Класс хранит состояние партии и проверяет ходы. Он ничего не печатает:
+ * каждый ход возвращает список событий, а состояние читается через геттеры.
+ * Все случайности берутся из одного генератора {@link Random} с заданным зерном.</p>
+ *
+ * <p>Ход игры: атакующий кладёт карту ({@link #attack}), защитник отбивает
+ * ({@link #defend}) или берёт ({@link #take}), остальные подкидывают карты того же
+ * достоинства, что уже лежат на столе. Когда все закончили, вызывается
+ * {@link #finishTurn()}: стол уходит в отбой или к защитнику, игроки добирают карты.</p>
+ */
 public class Game {
+    /** Сколько карт должно быть у игрока после добора. */
     public static final int HAND_SIZE = 6;
+    /** Максимум атакующих карт за один ход. */
     public static final int MAX_ATTACK_CARDS = 6;
 
     private final int playerCount;
@@ -27,6 +41,15 @@ public class Game {
     private boolean finished;
     private int loser = -1;
 
+    /**
+     * Создаёт партию: тасует колоду, определяет козырь, раздаёт по 6 карт
+     * и выбирает первого атакующего (владелец младшего козыря, иначе игрок 0).
+     * События начала партии доступны через {@link #getEventLog()}.
+     *
+     * @param playerCount число игроков от 2 до 5
+     * @param seed        зерно генератора: одно зерно — одна и та же партия
+     * @throws IllegalArgumentException если игроков меньше 2 или больше 5
+     */
     public Game(int playerCount, long seed) {
         if (playerCount < 2 || playerCount > 5) {
             throw new IllegalArgumentException("Игроков должно быть от 2 до 5");
@@ -57,10 +80,19 @@ public class Game {
         startTurn(start, findFirstAttacker());
     }
 
-    //------------------------------
+    // ------------------------------------------------------------------
     // Ходы
-    //-----------------------------
+    // ------------------------------------------------------------------
 
+    /**
+     * Игрок кладёт карту на стол: первую карту хода — атакующий,
+     * остальные (подкидывание) — любой игрок, кроме защитника.
+     *
+     * @param player номер игрока
+     * @param card   карта из его руки
+     * @return события, произошедшие в результате хода
+     * @throws IllegalMoveException если ход запрещён правилами
+     */
     public List<GameEvent> attack(int player, Card card) {
         String problem = attackProblem(player, card);
         if (problem != null) {
@@ -73,6 +105,14 @@ public class Game {
         return out;
     }
 
+    /**
+     * Защитник бьёт одну из неотбитых карт на столе.
+     *
+     * @param attackCard  карта на столе, которую бьют
+     * @param defenseCard карта из руки защитника
+     * @return события хода
+     * @throws IllegalMoveException если ход запрещён правилами
+     */
     public List<GameEvent> defend(Card attackCard, Card defenseCard) {
         String problem = defendProblem(attackCard, defenseCard);
         if (problem != null) {
@@ -90,6 +130,13 @@ public class Game {
         return out;
     }
 
+    /**
+     * Защитник объявляет, что берёт карты. После этого остальные игроки
+     * могут ещё подкинуть карты (в пределах лимита), затем вызывается {@link #finishTurn()}.
+     *
+     * @return события хода
+     * @throws IllegalMoveException если брать нечего или защитник уже взял
+     */
     public List<GameEvent> take() {
         String problem = takeProblem();
         if (problem != null) {
@@ -101,7 +148,16 @@ public class Game {
         return out;
     }
 
-
+    /**
+     * Завершает ход, когда подкидывать больше никто не хочет.
+     * Если защитник брал — он забирает все карты со стола, иначе стол уходит в отбой
+     * (для этого все карты должны быть отбиты). Затем игроки добирают карты
+     * (атакующий, подкидывавшие по кругу, защитник последним), проверяется конец
+     * партии и определяются роли следующего хода.
+     *
+     * @return события, произошедшие при завершении хода
+     * @throws IllegalMoveException если стол пуст или есть неотбитые карты, а защитник не брал
+     */
     public List<GameEvent> finishTurn() {
         String problem = finishProblem();
         if (problem != null) {
@@ -150,19 +206,39 @@ public class Game {
         }
         return out;
     }
-    
-        //------------------------------
-        // Проверки
-        //-----------------------------
 
+    // ------------------------------------------------------------------
+    // Проверки и подсказки (для интерфейса и стратегий)
+    // ------------------------------------------------------------------
+
+    /**
+     * Создаёт объект.
+     *
+     * @param player номер игрока
+     * @param card   карта
+     * @return true, если игрок может сейчас положить эту карту
+     */
     public boolean canAttack(int player, Card card) {
         return attackProblem(player, card) == null;
     }
 
+    /**
+     * Создаёт объект.
+     *
+     * @param attackCard  карта на столе
+     * @param defenseCard карта защитника
+     * @return true, если защитник может сейчас отбить attackCard картой defenseCard
+     */
     public boolean canDefend(Card attackCard, Card defenseCard) {
         return defendProblem(attackCard, defenseCard) == null;
     }
 
+    /**
+     * Создаёт объект.
+     *
+     * @param player номер игрока
+     * @return карты из руки игрока, которые он может сейчас выложить
+     */
     public List<Card> getAttackCandidates(int player) {
         List<Card> result = new ArrayList<>();
         if (player < 0 || player >= playerCount) {
@@ -176,6 +252,12 @@ public class Game {
         return result;
     }
 
+    /**
+     * Создаёт объект.
+     *
+     * @param attackCard карта на столе
+     * @return карты защитника, которыми можно отбить attackCard
+     */
     public List<Card> getDefenseCandidates(Card attackCard) {
         List<Card> result = new ArrayList<>();
         if (finished) {
@@ -189,6 +271,11 @@ public class Game {
         return result;
     }
 
+    /**
+     * Неотбитые атакующие карты на столе в порядке выкладывания.
+     *
+     * @return неотбитые атакующие карты на столе в порядке выкладывания
+     */
     public List<Card> getUnbeatenCards() {
         List<Card> result = new ArrayList<>();
         for (TablePair pair : table) {
@@ -199,51 +286,166 @@ public class Game {
         return result;
     }
 
-    //------------------------------
-    //СОСТОЯНИЕ
-    // ------------------------------- 
+    // ------------------------------------------------------------------
+    // Состояние
+    // ------------------------------------------------------------------
 
-    public int getPlayerCount() {return playerCount;}
+    /**
+     * Число игроков.
+     *
+     * @return число игроков
+     */
+    public int getPlayerCount() {
+        return playerCount;
+    }
 
-    public long getSeed() {return seed;}
+    /**
+     * Зерно, с которым создана партия.
+     *
+     * @return зерно, с которым создана партия
+     */
+    public long getSeed() {
+        return seed;
+    }
 
-    public Random getRandom() {return random;}
-    
-    public Suit getTrumpSuit() {return trumpSuit;}
+    /**
+     * Генератор партии. Стратегии и тесты должны брать случайность только отсюда.
+     *
+     * @return единственный генератор случайных чисел партии
+     */
+    public Random getRandom() {
+        return random;
+    }
 
-    public Card getTrumpCard() {return deck.getTrumpCard();}
+    /**
+     * Козырная масть.
+     *
+     * @return козырная масть
+     */
+    public Suit getTrumpSuit() {
+        return trumpSuit;
+    }
 
-    public int getDeckSize() {return deck.size();}
+    /**
+     * Козырная карта (нижняя карта колоды в начале партии).
+     *
+     * @return козырная карта (нижняя карта колоды в начале партии)
+     */
+    public Card getTrumpCard() {
+        return deck.getTrumpCard();
+    }
 
-    public int getDiscardSize() {return discard.size();}
+    /**
+     * Сколько карт осталось в колоде.
+     *
+     * @return сколько карт осталось в колоде
+     */
+    public int getDeckSize() {
+        return deck.size();
+    }
 
-    public Player getPlayer(int index) {return players.get(index);}
+    /**
+     * Сколько карт в отбое.
+     *
+     * @return сколько карт в отбое
+     */
+    public int getDiscardSize() {
+        return discard.size();
+    }
 
-    public List<TablePair> getTable() {return Collections.unmodifiableList(table);}
+    /**
+     * Создаёт объект.
+     *
+     * @param index номер игрока
+     * @return игрок (его рука доступна только для чтения)
+     */
+    public Player getPlayer(int index) {
+        return players.get(index);
+    }
 
-    public int getAttacker() {return attacker;}
+    /**
+     * Пары карт на столе (только для чтения).
+     *
+     * @return пары карт на столе (только для чтения)
+     */
+    public List<TablePair> getTable() {
+        return Collections.unmodifiableList(table);
+    }
 
-    public int getDefender() {return defender;}
+    /**
+     * Номер атакующего в текущем ходу.
+     *
+     * @return номер атакующего в текущем ходу
+     */
+    public int getAttacker() {
+        return attacker;
+    }
 
-    public boolean isTakeDeclared() {return takeDeclared;}
+    /**
+     * Номер защитника в текущем ходу.
+     *
+     * @return номер защитника в текущем ходу
+     */
+    public int getDefender() {
+        return defender;
+    }
 
-    public int getAttackLimit() {return attackLimit;}
+    /**
+     * True, если защитник объявил, что берёт.
+     *
+     * @return true, если защитник объявил, что берёт
+     */
+    public boolean isTakeDeclared() {
+        return takeDeclared;
+    }
 
-    public boolean isFinished() {return finished;}
+    /**
+     * Максимум атакующих карт в текущем ходу:.
+     *
+     * @return максимум атакующих карт в текущем ходу:
+     * меньшее из 6 и числа карт у защитника в начале хода
+     */
+    public int getAttackLimit() {
+        return attackLimit;
+    }
 
-    public int getLoser() {return loser;}
+    /**
+     * True, если партия закончена.
+     *
+     * @return true, если партия закончена
+     */
+    public boolean isFinished() {
+        return finished;
+    }
 
-    public List<GameEvent> getEventLog() {return Collections.unmodifiableList(log);}
-    
-    //------------------------------
+    /**
+     * Номер проигравшего (дурака); -1, если партия не закончена или закончилась вничью.
+     *
+     * @return номер проигравшего (дурака); -1, если партия не закончена или закончилась вничью
+     */
+    public int getLoser() {
+        return loser;
+    }
+
+    /**
+     * Все события партии с самого начала (только для чтения).
+     *
+     * @return все события партии с самого начала (только для чтения)
+     */
+    public List<GameEvent> getEventLog() {
+        return Collections.unmodifiableList(log);
+    }
+
+    // ------------------------------------------------------------------
     // Внутренние методы
-    //------------------------------
+    // ------------------------------------------------------------------
 
     private void emit(List<GameEvent> out, GameEvent event) {
         out.add(event);
         log.add(event);
     }
 
+    /** Возвращает причину запрета хода или null, если ход разрешён. */
     private String attackProblem(int player, Card card) {
         if (finished) {
             return "Партия уже закончена";
@@ -268,6 +470,7 @@ public class Game {
         }
         return null;
     }
+
     private String defendProblem(Card attackCard, Card defenseCard) {
         if (finished) {
             return "Партия уже закончена";
@@ -331,6 +534,7 @@ public class Game {
         return false;
     }
 
+    /** Первый атакующий — владелец младшего козыря; если козырей ни у кого нет — игрок 0. */
     private int findFirstAttacker() {
         int best = 0;
         int bestRank = 100;
@@ -345,6 +549,7 @@ public class Game {
         return best;
     }
 
+    /** Следующий после from игрок, у которого есть карты; -1, если таких нет. */
     private int nextActivePlayer(int from) {
         for (int step = 1; step <= playerCount; step++) {
             int index = (from + step) % playerCount;
@@ -363,6 +568,7 @@ public class Game {
         emit(out, new GameEvent(EventType.TURN_START, attacker, null, null, defender));
     }
 
+    /** Добор: атакующий, затем остальные по кругу, защитник последним (если он не брал). */
     private void refillHands(List<GameEvent> out, boolean defenderTook) {
         for (int step = 0; step < playerCount; step++) {
             int index = (attacker + step) % playerCount;
@@ -387,6 +593,7 @@ public class Game {
         }
     }
 
+    /** Когда колода пуста, игроки без карт выходят; остался один (или никого) — партия окончена. */
     private void checkGameOver(List<GameEvent> out) {
         if (!deck.isEmpty()) {
             return;

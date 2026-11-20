@@ -1,8 +1,13 @@
 package ru.vsu.durak;
 
-
+/**
+ * Масть карты.
+ */
 public enum Suit {
-    SPADES("♠"), HEARTS("♥"), DIAMONDS("♦"), CLUBS("♣");
+    SPADES("♠"),
+    HEARTS("♥"),
+    DIAMONDS("♦"),
+    CLUBS("♣");
 
     private final String symbol;
 
@@ -10,7 +15,13 @@ public enum Suit {
         this.symbol = symbol;
     }
 
-    String getSymbol() {
+    /**
+     * Символ масти для вывода.
+     *
+     * @return символ масти для вывода
+     */
+    public String getSymbol() {
         return symbol;
     }
 }
+

@@ -1,5 +1,8 @@
 package ru.vsu.durak;
 
+/**
+ * Виды событий партии.
+ */
 public enum EventType {
     TRUMP_REVEALED,
     DEAL,
